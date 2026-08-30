@@ -1,0 +1,8 @@
+# 忽略敏感文件
+*.key
+*.pem
+.env
+credentials.env
+*.local
+.DS_Store
+node_modules/
