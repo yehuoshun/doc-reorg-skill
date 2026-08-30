@@ -15,10 +15,11 @@
 2. **搬运与格式解耦** — 搬运阶段只判"有用性"原样搬，格式统一（如有）单独一轮做
 3. **零格式转换** — 源文档是什么格式（lake / markdown / sheet）就写什么，不转换
 4. **人工终审闸** — AI 自查 ≠ 过审，终审通过前禁入库禁发布
+5. **执行报告** — 每轮扫描结束强制出报告：概览 + 搬运清单 + **跳过清单（每条带原因+文档链接）** + 拿不准清单
 
 ## 使用
 
-Skill 内容见 `SKILL.md`，判定规则细则见 `references/rules.md`。
+Skill 内容见 `SKILL.md`，判定规则细则见 `references/rules.md`，报告模板见 `references/report-template.md`。
 
 ```mermaid
 flowchart TD
