@@ -22,9 +22,16 @@
 
 ## R4 格式零转换
 
-- 源文档 `format` 字段的取值：`lake` / `markdown` / `sheet`
+- 源文档 `format` 字段的枚举值：`markdown` / `lake` / `html`（注意：**没有 sheet**）
+- Sheet 不是 format，是文档 `type`（Doc/Sheet/Thread/Board/Table）
 - 搬运时 `yuque_copy_doc` 的 `format` 参数传源文档 format 原值
 - 不做 lake→markdown 之类的转换（会丢代码块、图片、表格格式）
+
+## R6 结构化文档类型（type=Sheet/Board/Table）
+
+- `copy_doc` 参数是 title/body 纯文本，传不了结构化正文（sheet 走 `body_sheet` JSON，table 走 `body_table`）
+- 遇到 `type` 非 Doc 的文档：**标记「待老板裁决」**，不强行搬
+- 判断依据：文档对象里的 `type` 字段，不是 format
 
 ## R5 有用性范围（老板给定）
 
