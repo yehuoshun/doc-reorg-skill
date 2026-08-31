@@ -39,8 +39,22 @@
 
 - 源文档 `format` 字段的枚举值：`markdown` / `lake` / `html`（注意：**没有 sheet**）
 - Sheet 不是 format，是文档 `type`（Doc/Sheet/Thread/Board/Table）
-- 搬运时 `yuque_copy_doc` 的 `format` 参数传源文档 format 原值
+- 搬运时 `yuque_create_doc` 的 `format` 参数传源文档 format 原值
 - 不做 lake→markdown 之类的转换（会丢代码块、图片、表格格式）
+
+### body 字段选择（重要）
+
+`yuque_get_doc` 返回三个 body 字段，必须按 format 选择正确的字段：
+
+| 源 format | 使用的 body 字段 | 说明 |
+|---|---|---|
+| `markdown` | `body` | 原生 markdown 文本 |
+| `lake` | `body_lake` | **必须用 body_lake**，用 `body` 会丢失 card 标签（视频卡片、文件卡片）内的附件链接 |
+| `html` | `body_html` | 原生 HTML |
+
+**错误示例**：lake 格式文档用 `body` + `format=markdown` 搬运 → card 标签被 strip，附件链接变为 markdown 文本链接，指向源库 CDN 而非目标库，导致附件失效。
+
+**正确做法**：`body_lake` + `format=lake` → card 标签保留，语雀自动处理 CDN 路径重定向。
 
 ## R6 结构化文档类型（type=Sheet/Board/Table）
 

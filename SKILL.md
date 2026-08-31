@@ -36,7 +36,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R1 正文二进制 | 正文无法解析成文本 → **不搬**（lake 格式带附件/视频卡片/文件卡片的除外） |
 | R2 数据库 dump | 内容是数据库 dump → **不搬** |
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
-| R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换 |
+| R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
 | R7 Big Doc 拆分 | 文档 body > 200KB → 下载后按章节拆分搬运 |
 | R8 文件碎片 | 标题含 `.7z/.flv/.rar/.zip/.mp4/.avi` 等压缩包/视频文件扩展名 → **不搬**（文件上传碎片，非文档） |
@@ -73,12 +73,13 @@ flowchart TD
 1. **定范围**：向老板确认 A 库、B 库、以及"有用范围"（范围法 / 目录法 / 全扫法，默认全扫法）
 2. **列文档**：`yuque_web_list_docs` 分页拉取 A 库文档
 3. **逐篇判定**：按 R8→R1→R2→R6→R7→R5 顺序判定，另查 `type` 字段（R6）
-4. **小文档搬运**：`yuque_copy_doc` 原样写入 B 库，`format` 传源文档的 format 原值
-5. **Big Doc 拆分**：`yuque_export_doc` 下载到本地，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条作为独立文档写入 B 库，标题格式 `{原文档名} - {章节名}`
-6. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
-7. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
-8. **交终审**：报告 + 搬运结果交老板人工终审
-9. **格式校验**：抽查 B 库文档确认格式未损坏（零转换后主要是校验动作）
+4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
+5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段
+6. **Big Doc 拆分**：`yuque_export_doc` 下载到本地，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条作为独立文档写入 B 库，标题格式 `{原文档名} - {章节名}`
+7. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
+8. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
+9. **交终审**：报告 + 搬运结果交老板人工终审
+10. **格式校验**：抽查 B 库文档确认格式未损坏（零转换后主要是校验动作）
 
 ### 执行报告（强制，每轮必出）
 
