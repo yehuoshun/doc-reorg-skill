@@ -26,14 +26,19 @@
 
 ## 跳过清单
 
-| 文档名 | 跳过原因 | 文档链接 |
-|---|---|---|
-| 《xxx》 | R1 正文二进制 | https://www.yuque.com/yehuoshun/{book_slug}/{doc_slug} |
-| 《xxx》 | R2 数据库dump | https://www.yuque.com/... |
-| 《xxx》 | R5 不在有用范围 | https://www.yuque.com/... |
-
 > 跳过原因映射：R1 正文二进制 / R2 数据库 dump / R5 不在有用范围
 > 每一条跳过必须同时给「原因」+「链接」，缺一不可
+> 跳过条目超过 100 条时，按原因分组展示（见下方示例）
+
+### {跳过原因}（共{N}篇）
+
+| # | 文档名 | 链接 |
+|---|---|---|
+| 1 | 《xxx》 | https://www.yuque.com/yehuoshun/{book_slug}/{doc_slug} |
+| 2 | 《xxx》 | https://www.yuque.com/... |
+
+> 按原因分组，每组首行标注数量，每条带链接。
+> 生成方式：写入本地 markdown 文件，用 `yuque_import_file` 导入目标库。
 
 ## 拿不准清单（待老板裁决）
 

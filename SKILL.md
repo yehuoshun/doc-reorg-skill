@@ -102,11 +102,40 @@ flowchart TD
 > 示例链接格式：`https://www.yuque.com/yehuoshun/{book_slug}/{doc_slug}`
 > 链接来源：文档对象里的 `book.slug` + `slug` 字段拼接
 
+### 报告放置
+
+- 报告直接放在目标库**根目录**（level=0），不嵌套子目录
+- 创建方式：生成完整 markdown 内容到本地文件，用 `yuque_import_file` 导入（避免 API body 长度限制）
+- 不要求首插（TOC 首插因 API 限制不可靠，见下方 TOC 操作局限）
+
+### 跳过清单条目过多时的处理
+
+当跳过条目超过 100 条时：
+- 按原因分组展示（如 `R1 正文二进制（标题含 .7z）` 为一组）
+- 每组首行标注数量，每条带链接
+- 将完整 markdown 文件写入本地临时目录，再用 `yuque_import_file` 导入为目标库的首篇文档
+- 完整 JSON 报告留存在本地供后续参考
+
+模板见 `references/report-template.md`
+
 ## 人工终审闸（强制）
 
 - AI 无权自判"审核通过"
 - 终审通过前禁入库禁发布
 - 终审通过后，搬运日志标注"(审核通过稿)"
+
+## TOC 操作局限
+
+- `yuque_batch_update_toc` 的 `moveNode` 操作中，`position=before` 配合 TITLE 类型的 `target_uuid` 时，**始终将目标节点变为该 TITLE 的第一个子节点**，而非同级插入
+- 如需将文档放在根目录，直接用 `yuque_create_doc` 或 `yuque_import_file` 创建，不依赖 TOC 移动操作
+- 不需要对目标库做复杂的 TOC 结构调整
+
+## 批量脚本执行注意事项
+
+- 子进程调用 `mcporter` 时，**必须指定 `cwd="/home/admin/.openclaw/workspace"`**，否则找不到 MCP 服务器配置
+- `yuque_get_doc` 的 `id` 参数必须是字符串，即使传数字也会被 MCP 校验拒绝
+- `yuque_copy_doc` 的 `paths` 参数必须是 JSON 数组字符串（如 `'["目录名"]'`），需用 `--args` 方式传参
+- 批量处理超过 100 条时，建议先 title 检测跳过二进制文件，再逐条 fetch body 验证
 
 ## 错误处理
 
