@@ -41,13 +41,14 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
 | R7 Big Doc 拆分 | 文档 body > 200KB → 下载后按章节拆分搬运 |
+| R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
 | R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 
 > 判定标准只看 body 内容，不看标题。
 > **优化技巧**：`yuque_web_list_docs` 返回的 `editor_meta` 字段可快速判断文档是否含附件（`{"file":N}` / `{"video":N}`），有 editor_meta 的文档一定是合法 lake 文档，无需调 get_doc 确认。纯二进制上传碎片的 editor_meta 为 null。
 > 标题含 `.7z` / `.flv` / `.mp4` / `.zip` / `.rar` 等扩展名可以作为快速预判参考，但不能作为跳过依据——必须获取 body 后确认是否纯二进制乱码。
 > lake 格式文档即使 body 含不可读数据（如视频卡片、文件卡片嵌入），只要包含 `<card>` 标签，就不算二进制。
-> 判定优先级：R1 > R2 > R6 > R7 > R5 > R3，顺序判定，命中即止。
+> 判定优先级：R1 > R2 > R8 > R6 > R7 > R5 > R3，顺序判定，命中即止。
 
 ## 流程
 
@@ -55,7 +56,8 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 flowchart TD
     A[取一篇A库文档] --> B{正文是纯二进制乱码?<br/>body 无可读文本<br/>且无 lake card 标签}
     B -- 是 --> X[不搬]
-    B -- 否 --> C{是数据库dump?}
+    B -- 否 --> N{无意义内容?<br/>正文<10字符<br/>或纯数字/标点/空白}<br/>N -- 是 --> X
+    N -- 否 --> C{是数据库dump?}
     C -- 是 --> X
     C -- 否 --> T{type 是 Sheet/Board/Table?}
     T -- 是 --> W[标记待老板裁决<br/>不强行搬]
