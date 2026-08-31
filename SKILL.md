@@ -25,49 +25,62 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 ## 前置环境
 
 - 语雀操作必须走 MCP（`yuque-mcp`，禁止直接 curl 调语雀 API）
-- 读取工具：`yuque_web_list_repos` / `yuque_web_list_docs` / `yuque_web_get_doc`
-- 搬运工具：`yuque_copy_doc`（或 `yuque_create_doc`）
-- 目录结构：`yuque_get_toc` / `yuque_update_toc`
+- 列表工具：`yuque_web_list_docs`（分页拉取，返回 editor_meta 字段，可用于快速预判附件文档）
+- 读取工具：`yuque_get_doc`（v2 API，返回完整 body / body_lake / body_html）
+  - ⚠️ `yuque_web_get_doc`（web API）不返回 body_lake，仅用于轻量查询
+- 搬运工具：`yuque_create_doc`（写入目标库，format 传源格式，body 传对应字段）
+- 目录结构：`yuque_get_toc` / `yuque_batch_update_toc`
 
 ## 判定规则（先手拦截，AI 严格照办）
 
 | 规则 | 判定 |
 |---|---|
-| R1 正文二进制 | 正文无法解析成文本 → **不搬** |
+| R1 正文二进制 | 正文是纯二进制乱码/不可读内容 → **不搬**。lake 格式含 `<card>` 标签的文档不算二进制（即使标题含文件扩展名，如 `.w3x/.js/.gif`，也不跳过） |
 | R2 数据库 dump | 内容是数据库 dump → **不搬** |
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
-| R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换 |
+| R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
-| R5 有用性 | 命中"有用范围"才搬，范围由老板在任务开始时给定 |
+| R7 Big Doc 拆分 | 文档 body > 200KB → 下载后按章节拆分搬运 |
+| R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 
-> 看正文，不看附件。正文能读出来就要，正文是二进制就不要；附件跟着正文走。
+> 判定标准只看 body 内容，不看标题。
+> **优化技巧**：`yuque_web_list_docs` 返回的 `editor_meta` 字段可快速判断文档是否含附件（`{"file":N}` / `{"video":N}`），有 editor_meta 的文档一定是合法 lake 文档，无需调 get_doc 确认。纯二进制上传碎片的 editor_meta 为 null。
+> 标题含 `.7z` / `.flv` / `.mp4` / `.zip` / `.rar` 等扩展名可以作为快速预判参考，但不能作为跳过依据——必须获取 body 后确认是否纯二进制乱码。
+> lake 格式文档即使 body 含不可读数据（如视频卡片、文件卡片嵌入），只要包含 `<card>` 标签，就不算二进制。
+> 判定优先级：R1 > R2 > R6 > R7 > R5 > R3，顺序判定，命中即止。
 
 ## 流程
 
 ```mermaid
 flowchart TD
-    A[取一篇A库文档] --> B{正文是二进制?}
+    A[取一篇A库文档] --> B{正文是纯二进制乱码?<br/>body 无可读文本<br/>且无 lake card 标签}
     B -- 是 --> X[不搬]
     B -- 否 --> C{是数据库dump?}
     C -- 是 --> X
     C -- 否 --> T{type 是 Sheet/Board/Table?}
     T -- 是 --> W[标记待老板裁决<br/>不强行搬]
-    T -- 否 --> D{属于有用范围?}
+    T -- 否 --> G{body > 200KB?}
+    G -- 是 --> H[下载文档<br/>按章节拆分]
+    H --> I[分别搬运各章节<br/>标题: 原文档名 - 章节名]
+    G -- 否 --> D{属于有用范围?}
     D -- 是 --> E[原样搬进B库<br/>保留 format 原值<br/>markdown/lake/html 零转换<br/>附件跟着正文走]
     D -- 否 --> X
     E --> F[记录搬运日志]
+    I --> F
 ```
 
 ### 步骤
 
-1. **定范围**：向老板确认 A 库、B 库、以及"有用范围"（范围法 / 目录法 / 全扫法）
+1. **定范围**：向老板确认 A 库、B 库、以及"有用范围"（范围法 / 目录法 / 全扫法，默认全扫法）
 2. **列文档**：`yuque_web_list_docs` 分页拉取 A 库文档
-3. **逐篇判定**：按 R1→R5 顺序判定，另查 `type` 字段（R6）
-4. **搬运**：`yuque_copy_doc` 原样写入 B 库，`format` 传源文档的 format 原值
-5. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
-6. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + 拿不准清单，模板见 `references/report-template.md`
-7. **交终审**：报告 + 搬运结果交老板人工终审
-8. **格式校验**：抽查 B 库文档确认格式未损坏（零转换后主要是校验动作）
+3. **逐篇判定**：按 R1→R2→R6→R7→R5 顺序判定，另查 `type` 字段（R6）
+4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
+5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段
+6. **Big Doc 拆分**：`yuque_export_doc` 下载到本地，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条作为独立文档写入 B 库，标题格式 `{原文档名} - {章节名}`
+7. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
+8. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
+9. **交终审**：报告 + 搬运结果交老板人工终审
+10. **格式校验**：抽查 B 库文档确认格式未损坏（零转换后主要是校验动作）
 
 ### 执行报告（强制，每轮必出）
 
@@ -75,8 +88,9 @@ flowchart TD
 
 | 块 | 内容 | 格式要求 |
 |---|---|---|
-| 概览 | 扫描 / 搬运 / 跳过 / 拿不准数量 | 数字 + 一眼可读 |
+| 概览 | 扫描 / 搬运 / 跳过 / Big Doc 拆分 / 拿不准数量 | 数字 + 一眼可读 |
 | 搬运清单 | 成功搬入 B 库的文档 | 文档名 + 源格式 + 目标位置 |
+| **Big Doc 拆分清单** | 因 >200KB 被拆分的文档 | 原文档名 + 拆分章节数 + 目标位置 |
 | **跳过清单** | 被规则拦截的文档 | **文档名 + 跳过原因 + 文档链接，每条都有** |
 | 拿不准清单 | 硬规则覆盖不到的 | 文档名 + 原因 + 链接，交老板扫一眼 |
 
@@ -98,3 +112,7 @@ flowchart TD
 
 - **限流 429**：v2 API 被限流时改用 cookie 态 web 接口（`yuque_web_*`）
 - **拿不准**：R5 命中不了硬规则时，打标"拿不准"列一行给老板扫一眼，不搬
+- **Big Doc 下载失败**：标记为"下载失败"，跳过该文档，记录原因
+- **Big Doc 拆分失败**：标记为"拆分失败"，跳过该文档，记录原因
+- **OOM 预防**：禁止并发读取/写入，单线程逐篇处理；处理完一篇释放 body 后再处理下一篇
+- **网络超时**：单次操作超时 30 秒，超时重试 1 次，仍失败则跳过并记录
