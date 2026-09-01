@@ -78,7 +78,7 @@ flowchart TD
 3. **逐篇判定**：按 R1→R2→R6→R7→R5 顺序判定，另查 `type` 字段（R6）
 4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
 5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段
-6. **Big Doc 拆分**：`yuque_export_doc` 下载到本地，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条作为独立文档写入 B 库，标题格式 `{原文档名} - {章节名}`
+6. **Big Doc 拆分**：`yuque_get_doc` 获取 body，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条用 `yuque_import_file` 写入 B 库（避免命令行参数长度限制），标题格式 `{原文档名} - {章节名}`。拆分后每篇保持源 format。纯文本无章节结构的文档降级为整体搬运（不做硬拆分）
 7. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
 8. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
 9. **交终审**：报告 + 搬运结果交老板人工终审
@@ -137,7 +137,11 @@ flowchart TD
 - 子进程调用 `mcporter` 时，**必须指定 `cwd="/home/admin/.openclaw/workspace"`**，否则找不到 MCP 服务器配置
 - `yuque_get_doc` 的 `id` 参数必须是字符串，即使传数字也会被 MCP 校验拒绝
 - `yuque_copy_doc` 的 `paths` 参数必须是 JSON 数组字符串（如 `'["目录名"]'`），需用 `--args` 方式传参
-- 批量处理超过 100 条时，建议先 title 检测跳过二进制文件，再逐条 fetch body 验证
+- **命令行参数长度限制**：`yuque_create_doc` / `yuque_copy_doc` 将 body 作为命令行参数传递，body > 50KB 时可能触发 `Argument list too long` 错误。**解决方案**：body > 50KB 的文档用 `yuque_import_file` 替代（body 写入本地文件，命令只传文件路径）
+- **word_count 预过滤**：先通过 `yuque_list_docs` 拉取全量文档的 `word_count` 字段。`word_count > 100000` → 直接 R1 跳过（不 fetch body）；`word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 大概率是二进制碎片，直接 R1 跳过
+- **路径标题净化**：`yuque_copy_doc` 的 `paths` 参数中的标题可能含 tab、换行等特殊字符，导致 JSON 解析失败。搬运前需 `re.sub(r'[\t\n\r]+', ' ', title)` 净化
+- **批量处理超过 100 条时**，建议先 title 检测跳过二进制文件，再逐条 fetch body 验证
+- **进度持久化**：每处理 20 条保存一次中间结果到 JSON 文件，支持断点续跑（跳过已处理的 doc_id）
 
 ## 错误处理
 
