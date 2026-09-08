@@ -13,7 +13,10 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 1. **随看随搬**：文档量大时不做"先列清单再审"（老板审不过来），AI 边扫边判边搬
 2. **搬运与格式解耦**：搬运阶段只判"有用性"，原样搬；格式统一（如有）单独一轮做
 3. **零格式转换**：源文档 `format` 是什么就写什么（markdown / lake / html），不做格式转换
-4. **人工终审闸**：AI 自查 ≠ 过审，过审以老板/主管人工终审为准，终审通过前禁入库禁发布
+4. **内容清洗（可选）**：源文档来自剪藏/论坛时，去除垃圾样式（HTML 内联样式、导航栏、页脚、多余空白）。**清洗 ≠ 格式转换**——只清同格式内的噪音，不改 format
+5. **源链接注入（可选）**：搬运后在新文档末尾追加源文档链接，方便溯源
+6. **不删源文档**：搬运是复制语义，源库文档一律保留、不删除、不改动
+7. **人工终审闸**：AI 自查 ≠ 过审，过审以老板/主管人工终审为准，终审通过前禁入库禁发布
 
 ## 触发场景
 
@@ -21,6 +24,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 - "从 A 库找有用文档搬到 B 库"
 - "语雀文档迁移 / 筛选 / 归档"
 - "随看随搬"
+- "全量搬运 / 去除剪藏垃圾样式 / 末尾加源链接"
 
 ## 前置环境
 
@@ -40,7 +44,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
-| R7 Big Doc 拆分 | 文档 body > 200KB → 下载后按章节拆分搬运 |
+| R7 Big Doc 拆分 | 文档 body > 200KB → 按章节拆分搬运；body > 50KB 时 `yuque_create_doc` 会触发 `Argument list too long`，改用 `yuque_import_file`（body 写入本地文件，命令只传文件路径） |
 | R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
 | R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 
@@ -49,6 +53,37 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 > 标题含 `.7z` / `.flv` / `.mp4` / `.zip` / `.rar` 等扩展名可以作为快速预判参考，但不能作为跳过依据——必须获取 body 后确认是否纯二进制乱码。
 > lake 格式文档即使 body 含不可读数据（如视频卡片、文件卡片嵌入），只要包含 `<card>` 标签，就不算二进制。
 > 判定优先级：R1 > R2 > R8 > R6 > R7 > R5 > R3，顺序判定，命中即止。
+
+## 内容清洗与源链接注入（可选能力）
+
+> 老板明确要求"去剪藏垃圾样式"或"末尾加源链接"时才启用；默认仍为零转换（原样搬）。
+
+### 内容清洗（去剪藏垃圾样式）
+
+针对从网页剪藏/论坛搬来的 markdown/lake 正文，清洗以下噪音（**不改 format**）：
+
+| 清洗项 | 说明 |
+|---|---|
+| HTML 内联样式 | 去掉 `style="..."`、`class="..."`、`data-*` 等属性 |
+| 平台导航栏 | 去掉 LINUX DO / 博客园 等页首导航、面包屑、侧栏 |
+| 页脚 | 去掉「本文由 xxx 发布」「著作权归作者所有」等页脚 |
+| 多余空白 | 压缩连续空行、去行首行尾空白 |
+
+清洗方式：拿到 body 后先清洗再搬运；`format` 仍传源文档 format 原值。清洗后 body < 10 字符的按 R8 跳过。
+
+### 源链接注入
+
+搬运后在新文档正文末尾追加（markdown/lake 通用）：
+
+```markdown
+---
+
+> 本文档从 [源文档](https://www.yuque.com/{login}/{book_slug}/{doc_slug}) 搬运
+```
+
+### 不删源文档
+
+搬运是**复制**语义，源库 A 库文档一律保留，不删除、不改动。
 
 ## 流程
 
@@ -106,9 +141,13 @@ flowchart TD
 
 ### 报告放置
 
-- 报告直接放在目标库**根目录**（level=0），不嵌套子目录
+- 报告放在**目标库或源库**（按老板指定）**根目录**（level=0），不嵌套子目录
 - 创建方式：生成完整 markdown 内容到本地文件，用 `yuque_import_file` 导入（避免 API body 长度限制）
-- 不要求首插（TOC 首插因 API 限制不可靠，见下方 TOC 操作局限）
+- **首插（可选）**：老板要求报告放根目录**首位**时，三步走：
+  1. `yuque_import_file` 导入（`paths` 必填非空，先用临时目录名，如 `["整理报告"]`）
+  2. `yuque_update_toc` 调 `action=prependNode` + `node_uuid`（报告节点 uuid）+ `target_uuid`（当前第一个根节点 uuid）提为首位
+  3. 若 import 时生成了空的临时 TITLE 目录，用 `action=removeNode` + `confirm="DELETE"` 清掉
+- 首插必须用**单文档** `yuque_update_toc` 的 `prependNode`，不是 `batch_update_toc` 的 `moveNode`（后者 position=before 配合 TITLE target 会把节点变子级而非同级）
 
 ### 跳过清单条目过多时的处理
 
@@ -134,11 +173,16 @@ flowchart TD
 
 ## 批量脚本执行注意事项
 
+> **量大优先用批量脚本**：文档上千篇时，写个循环脚本（逐篇 get_doc → 清洗 → create_doc），单线程串行处理，比 AI 逐篇人工判定快得多。配合进度持久化可断点续跑。以下为脚本实现的坑点：
+
 - 子进程调用 `mcporter` 时，**必须指定 `cwd="/home/admin/.openclaw/workspace"`**，否则找不到 MCP 服务器配置
 - `yuque_get_doc` 的 `id` 参数必须是字符串，即使传数字也会被 MCP 校验拒绝
 - `yuque_copy_doc` 的 `paths` 参数必须是 JSON 数组字符串（如 `'["目录名"]'`），需用 `--args` 方式传参
 - **命令行参数长度限制**：`yuque_create_doc` / `yuque_copy_doc` 将 body 作为命令行参数传递，body > 50KB 时可能触发 `Argument list too long` 错误。**解决方案**：body > 50KB 的文档用 `yuque_import_file` 替代（body 写入本地文件，命令只传文件路径）
-- **word_count 预过滤**：先通过 `yuque_list_docs` 拉取全量文档的 `word_count` 字段。`word_count > 100000` → 直接 R1 跳过（不 fetch body）；`word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 大概率是二进制碎片，直接 R1 跳过
+- **word_count 预过滤（双向）**：先通过 `yuque_list_docs` 拉取全量文档的 `word_count` 字段，不 fetch body 即可拦截：
+  - `word_count < 10` → 直接 R8 跳过（无意义纯水文档，如批量「松建华」垃圾文档，一次可拦截数百篇，省大量 API 调用）
+  - `word_count > 100000` → 直接 R1 跳过（二进制碎片）
+  - `word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 大概率二进制碎片，直接 R1 跳过
 - **路径标题净化**：`yuque_copy_doc` 的 `paths` 参数中的标题可能含 tab、换行等特殊字符，导致 JSON 解析失败。搬运前需 `re.sub(r'[\t\n\r]+', ' ', title)` 净化
 - **批量处理超过 100 条时**，建议先 title 检测跳过二进制文件，再逐条 fetch body 验证
 - **进度持久化**：每处理 20 条保存一次中间结果到 JSON 文件，支持断点续跑（跳过已处理的 doc_id）

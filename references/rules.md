@@ -63,6 +63,7 @@
 ## R7 Big Doc 拆分
 
 - 触发条件：文档 body 长度 > 200KB（≈ 200,000 字节）
+- ⚠️ **命令行长度限制先行**：`yuque_create_doc` / `yuque_copy_doc` 把 body 作为命令行参数传递，body > 50KB 就可能触发 `Argument list too long`。所以 body > 50KB 就该改走 `yuque_import_file`（body 写本地文件，命令只传文件路径），而不是等 200KB 才处理
 - 操作流程：
   1. 用 `yuque_export_doc` 或 API 获取文档完整内容
   2. 按章节标题拆分：
@@ -91,6 +92,7 @@
 
 - 判定方式：正文内容极短或仅含无意义字符，无法构成有效信息
 - 优先级：R8 **在 R1 之后、R5 之前**（即先检查 R1 二进制，再检查 R8 无意义，最后 R5 有用性）
+- **word_count 预过滤（不 fetch body）**：批量场景下先拉 `word_count` 字段，`word_count < 10` 直接 R8 跳过——典型的如批量「松建华」垃圾文档（几百篇 word_count=1），一次全拦，省掉几百次 get_doc 调用
 - 不搬条件（满足任一即可）：
   - 正文长度 < 10 字符（去除空白后）
   - 正文仅含纯数字、标点、空白符、换行符等无意义字符
