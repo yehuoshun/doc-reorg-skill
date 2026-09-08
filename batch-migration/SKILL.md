@@ -42,7 +42,7 @@ description: 语雀知识库全量批量搬运。读取每篇内容、去除剪�
 | R2 数据库 dump | 不搬 |
 | R8 无意义内容 | 正文 < 10 字符或纯数字/标点/空白 → 不搬 |
 | R6 结构化类型 | type=Sheet/Board/Table → 标记待老板裁决，不强行搬 |
-| R7 Big Doc | body > 200KB 按章节拆分；> 50KB 改走 `yuque_import_file` |
+| R7 Big Doc | body > 200KB 按 ~200KB 段落拆分；> 50KB 改走 `yuque_import_file` |
 | R5 有用性 | 默认全扫法，非以上拦截项全搬 |
 | R3 附件 | 正文是文字的，附件随正文走 |
 
@@ -94,7 +94,27 @@ description: 语雀知识库全量批量搬运。读取每篇内容、去除剪�
 
 - body ≤ 50KB：`yuque_create_doc` 直接写
 - body > 50KB：`yuque_create_doc` 会触发 `Argument list too long`（body 走命令行参数），改 `yuque_import_file`（body 写本地文件，命令只传文件路径）
-- body > 200KB：按章节标题（`#`/`##`/`###` 或 `一、二、三` 等）拆分，每条用 `yuque_import_file`，标题 `{原文档名} - {章节名}`；无章节结构的降级整体搬运
+- body > 200KB：按 **~200KB 段落**拆分——在段落/空行边界切分，每段 ≤200KB，每条用 `yuque_import_file`，标题 `{原文档名} - 第 N 段`；切分点优先选段落边界，避免掐断句子
+
+## 按内容建 TOC
+
+全量搬运后，目标库文档默认**平铺在根目录**（`yuque_create_doc` 不自动建目录），需按内容建目录树。
+
+### 流程
+
+1. **分类**：拉全量文档标题，按标题线索自动分（板块/作者/站点/扩展名）：
+   - `标题 - 开发调优 - LINUX DO` → `LINUX DO/开发调优`
+   - `标题 - 作者 - 博客园` → `博客园/技术文章`（或按作者细分）
+   - 标题含 `.apk/.zip/.mp4` 等 → `游戏`
+2. **建目录**：`yuque_update_toc` 逐层建 TITLE（`action=appendNode, action_mode=child, type=TITLE, title=X`，嵌套传 `target_uuid=父目录 uuid`）
+3. **移文档**：`yuque_batch_update_toc` 批量 `moveNode`（`node_uuid`=文档当前 uuid，`target_uuid`=目标目录 uuid），`confirm` 必须传 `RESTRUCTURE`
+
+### 关键坑
+
+- **直接 `appendNode` 带 `target_uuid` 对 DOC 类型不生效**（文档不动），必须走 `moveNode`（内部 remove+append）
+- **moveNode 会改文档 uuid**：移动某文档不影响其他文档 uuid，可先做「doc_id → uuid」快照批量移；每移一批后重取 `yuque_get_toc` 更稳
+- **建目录用单工具 `appendNode` TITLE 会盲目追加**，同名目录重复建——先 `yuque_get_toc` 查已存在目录复用，事后清掉空重复目录
+- **分块执行**：每批 50-60 个 `moveNode`，避免 ops 数组过大
 
 ## 断点续传
 

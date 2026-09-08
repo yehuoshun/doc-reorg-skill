@@ -40,7 +40,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
-| R7 Big Doc 拆分 | 文档 body > 200KB → 下载后按章节拆分搬运 |
+| R7 Big Doc 拆分 | 文档 body > 200KB → 按 ~200KB 段落拆分搬运 |
 | R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
 | R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 
@@ -62,8 +62,8 @@ flowchart TD
     C -- 否 --> T{type 是 Sheet/Board/Table?}
     T -- 是 --> W[标记待老板裁决<br/>不强行搬]
     T -- 否 --> G{body > 200KB?}
-    G -- 是 --> H[下载文档<br/>按章节拆分]
-    H --> I[分别搬运各章节<br/>标题: 原文档名 - 章节名]
+    G -- 是 --> H[下载文档<br/>按 ~200KB 段落拆分]
+    H --> I[分别搬运各段<br/>标题: 原文档名 - 第N段]
     G -- 否 --> D{属于有用范围?}
     D -- 是 --> E[原样搬进B库<br/>保留 format 原值<br/>markdown/lake/html 零转换<br/>附件跟着正文走]
     D -- 否 --> X
@@ -78,7 +78,7 @@ flowchart TD
 3. **逐篇判定**：按 R1→R2→R6→R7→R5 顺序判定，另查 `type` 字段（R6）
 4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
 5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段
-6. **Big Doc 拆分**：`yuque_get_doc` 获取 body，按章节标题（`#`/`##`/`###` 或 `一、二、三` 等中文编号）拆分，每条用 `yuque_import_file` 写入 B 库（避免命令行参数长度限制），标题格式 `{原文档名} - {章节名}`。拆分后每篇保持源 format。纯文本无章节结构的文档降级为整体搬运（不做硬拆分）
+6. **Big Doc 拆分**：`yuque_get_doc` 获取 body，按 **~200KB 段落**切分（段落/空行边界，每段 ≤200KB），每条用 `yuque_import_file` 写入 B 库（避免命令行参数长度限制），标题格式 `{原文档名} - 第 N 段`。拆分后每篇保持源 format。
 7. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
 8. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
 9. **交终审**：报告 + 搬运结果交老板人工终审
@@ -92,7 +92,7 @@ flowchart TD
 |---|---|---|
 | 概览 | 扫描 / 搬运 / 跳过 / Big Doc 拆分 / 拿不准数量 | 数字 + 一眼可读 |
 | 搬运清单 | 成功搬入 B 库的文档 | 文档名 + 源格式 + 目标位置 |
-| **Big Doc 拆分清单** | 因 >200KB 被拆分的文档 | 原文档名 + 拆分章节数 + 目标位置 |
+| **Big Doc 拆分清单** | 因 >200KB 被拆分的文档 | 原文档名 + 拆分段数 + 目标位置 |
 | **跳过清单** | 被规则拦截的文档 | **文档名 + 跳过原因 + 文档链接，每条都有** |
 | 拿不准清单 | 硬规则覆盖不到的 | 文档名 + 原因 + 链接，交老板扫一眼 |
 
