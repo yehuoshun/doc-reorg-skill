@@ -1,58 +1,36 @@
-# doc-reorg-skill
+# yuque doc skills
 
-语雀知识库文档整理 Skill：**随看随搬、零格式转换、人工终审闸**。
+语雀知识库文档整理 / 迁移技能合集。多套方案并存，按场景选用。
 
-## 解决什么
+## 技能列表
 
-把源知识库（A 库）里的有用文档筛选搬运到目标知识库（B 库），
-适用于文档量大、无法先列清单再审的场景。
+### 1. doc-reorg — 随看随搬（轻量）
 
-> 🆕 **姊妹 Skill**：需要「批量清洗 + 智能去重 + 断点续传」的重型迁移？看 [yuque-migration-skill](https://github.com/yehuoshun/yuque-migration-skill)（两套方案并存，按场景选用）
+语雀知识库文档整理：**随看随搬、零格式转换、人工终审闸**。
 
-## 核心设计
+- **适用**：中小库，老板边看边审，AI 逐篇判有用性
+- **入口**：[`doc-reorg/SKILL.md`](doc-reorg/SKILL.md)
+- **规则细则**：[`doc-reorg/references/rules.md`](doc-reorg/references/rules.md)
+- **报告模板**：[`doc-reorg/references/report-template.md`](doc-reorg/references/report-template.md)
 
-1. **随看随搬** — 文档量大时不做"先列清单再审"，AI 边扫边判边搬
-2. **搬运与格式解耦** — 搬运阶段只判"有用性"原样搬，格式统一（如有）单独一轮做
-3. **零格式转换** — 源文档是什么格式（markdown / lake / html）就写什么，不转换
-4. **人工终审闸** — AI 自查 ≠ 过审，终审通过前禁入库禁发布
-5. **执行报告** — 每轮扫描结束强制出报告：概览 + 搬运清单 + **跳过清单（每条带原因+文档链接）** + 拿不准清单
+### 2. batch-migration — 全量批量搬运（重型）
 
-## 使用
+纯规则 R1-R8 全扫 + MCP 直驱 + 内容清洗 + 源链接注入 + 断点续传。
 
-Skill 内容见 `SKILL.md`，判定规则细则见 `references/rules.md`，报告模板见 `references/report-template.md`。
+- **适用**：千篇级大批量、无 LLM、要求原样 + 溯源
+- **入口**：[`batch-migration/SKILL.md`](batch-migration/SKILL.md)
 
-```mermaid
-flowchart TD
-    A[取一篇A库文档] --> S{标题含文件扩展名?}
-    S -- 是 --> X[不搬 - 文件碎片]
-    S -- 否 --> B{正文是二进制?}
-    B -- 是（lake 卡片除外） --> X
-    B -- 否 --> C{是数据库dump?}
-    C -- 是 --> X
-    C -- 否 --> T{type 是 Sheet/Board/Table?}
-    T -- 是 --> W[标记待老板裁决]
-    T -- 否 --> G{body > 200KB?}
-    G -- 是 --> H[下载并按章节拆分]
-    H --> I[分别搬运各章节]
-    G -- 否 --> D{属于有用范围?}
-    D -- 是 --> E[原样搬进B库<br/>保留 format 原值<br/>零转换]
-    D -- 否 --> X
-    E --> F[记录搬运日志]
-    I --> F
-```
+### 3. yuque-migration（独立仓库）
 
-## 规则速览
+需要「批量清洗 + 智能去重 + 断点续传」+ LLM 分类去重？看 [yuque-migration-skill](https://github.com/yehuoshun/yuque-migration-skill)
 
-| 规则 | 判定 |
-|---|---|
-| R1 正文二进制 | 正文无法解析 → 不搬（lake 卡片除外） |
-| R2 数据库 dump | 不搬 |
-| R3 附件 | 正文是文字的，附件照搬 |
-| R4 格式 | 源格式是什么就写什么，零转换 |
-| R5 有用性 | 默认全扫法（非二进制/非dump/非文件碎片 全搬） |
-| R6 类型 | Sheet/Board/Table 结构化文档另案处理 |
-| R7 Big Doc 拆分 | body > 200KB 按章节拆分搬运 |
-| R8 文件碎片 | 标题含 .7z/.flv/.rar 等扩展名快速跳过 |
+## 方案对比
+
+| skill | 方案 | 适用 |
+|---|---|---|
+| doc-reorg | 随看随搬、零转换、AI 逐篇判 | 中小库、边看边审 |
+| batch-migration | 纯规则全扫 + 清洗 + 源链接 + 断点续传 | 千篇级大批量、无 LLM |
+| yuque-migration（独立） | migrate.py 脚本 + LLM 分类 + 去重 + 重拟标题 | 需智能去重 / 重命名 |
 
 ## 协议
 
