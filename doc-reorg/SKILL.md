@@ -53,7 +53,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
 | R7 Big Doc 拆分 | 文档 body > 200KB → 按 ~200KB 段落拆分搬运；`format` 一律传**源原值**（markdown/html/**lake** 都支持，不转格式） |
 | R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
-| R9 格式清理（方案 B，可选） | 老板开启时：markdown/html 写入前清理（标题去重复后缀/来源后缀，正文去多余空行/行尾空格）；**lake 永不清理**。细则见 `references/rules.md` |
+| R9 格式清理（方案 B，可选） | 老板开启时：markdown/html 写入前清理（标题去重复后缀/来源后缀〔**来源词白名单**〕，正文去多余空行/行尾空格）；**lake 永不清理**。细则见 `references/rules.md` |
 
 > 判定标准只看 body 内容，不看标题。
 > **优化技巧**：`yuque_web_list_docs` 传 `raw=true` 时才返回 `editor_meta`（默认裁剪输出不含），可用于快速预判文档是否含附件（`{"file":N}` / `{"video":N}`）。但仍以 body/card 判定为准，**不能单凭 editor_meta 就跳过**。
