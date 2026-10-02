@@ -26,11 +26,14 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 ## 前置环境
 
 - 语雀操作必须走 MCP（`yuque-mcp`，禁止直接 curl 调语雀 API）
-- 列表工具：`yuque_web_list_docs`（分页拉取，返回 editor_meta 字段，可用于快速预判附件文档）
-- 读取工具：`yuque_get_doc`（v2 API，返回完整 body / body_lake / body_html）
-  - ⚠️ `yuque_web_get_doc`（web API）不返回 body_lake，仅用于轻量查询
-- 搬运工具：`yuque_create_doc`（写入目标库，format 传源格式，body 传对应字段）
-- 目录结构：`yuque_get_toc` / `yuque_batch_update_toc`
+- **列表**：`yuque_web_list_docs`（Cookie 态；默认裁剪输出含 `id/type/slug/title/format/word_count/book` 等；传 `raw=true` 才额外含 `editor_meta` 等原始字段）——**本 skill 统一用它**。v2 的 `yuque_list_docs` 不返回 `type`，非必要不用
+- **读取**：`yuque_get_doc`（v2 API，返回完整 `body` / `body_lake` / `body_html`）
+  - ⚠️ `yuque_web_get_doc`（web API）不返回 `body_lake`，仅用于轻量查询
+- **写入**：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB，body 先写本地文件再传路径）
+- **复制**：`yuque_copy_doc`（`paths` 必须是 JSON 数组字符串，用 `--args` 传参）
+- **导出**：`yuque_export_doc`（取完整正文，R7 大文档拆分用）
+- **目录**：`yuque_get_toc` / `yuque_update_toc` / `yuque_batch_update_toc`
+- **备用（Cookie 态，v2 限流时）**：`yuque_web_*` 系列
 
 ## 判定规则（先手拦截，AI 严格照办）
 
@@ -40,49 +43,25 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R2 数据库 dump | 内容是数据库 dump → **不搬** |
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
+| R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
 | R7 Big Doc 拆分 | 文档 body > 200KB → 按 ~200KB 段落拆分搬运 |
 | R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
-| R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
-| R9 格式清理（方案 B，可选） | 老板开启时：markdown/html 写入前清理（标题去重复后缀/来源后缀，正文去多余空行/行尾空格）；**lake 永不清理** |
+| R9 格式清理（方案 B，可选） | 老板开启时：markdown/html 写入前清理（标题去重复后缀/来源后缀，正文去多余空行/行尾空格）；**lake 永不清理**。细则见 `references/rules.md` |
 
 > 判定标准只看 body 内容，不看标题。
-> **优化技巧**：`yuque_web_list_docs` 返回的 `editor_meta` 字段可快速判断文档是否含附件（`{"file":N}` / `{"video":N}`），有 editor_meta 的文档一定是合法 lake 文档，无需调 get_doc 确认。纯二进制上传碎片的 editor_meta 为 null。
+> **优化技巧**：`yuque_web_list_docs` 传 `raw=true` 时才返回 `editor_meta`（默认裁剪输出不含），可用于快速预判文档是否含附件（`{"file":N}` / `{"video":N}`）。但仍以 body/card 判定为准，**不能单凭 editor_meta 就跳过**。
 > 标题含 `.7z` / `.flv` / `.mp4` / `.zip` / `.rar` 等扩展名可以作为快速预判参考，但不能作为跳过依据——必须获取 body 后确认是否纯二进制乱码。
 > lake 格式文档即使 body 含不可读数据（如视频卡片、文件卡片嵌入），只要包含 `<card>` 标签，就不算二进制。
 > 判定优先级：R1 > R2 > R8 > R6 > R7 > R5 > R3，顺序判定，命中即止。
 
-## R9 格式清理（方案 B，v1）
-
-老板开启方案 B 时，写入前的清理规则（**只对 markdown/html 生效，lake 永不清理**）：
-
-### R9.1 标题净化（搬入即执行）
-
-- 去掉 `(重复标题-N)` / `（重复标题-N）` 后缀（N为数字）
-- 去掉 `- 博客园` 、` | 卡卡罗特` 等来源后缀（在标题末尾、`|` 或 `-` 分隔）
-- 去掉括号注释尾巴（如 `（23公益站数据丢失补偿千枚CDK）`、`（Cloudflare单域名SaaS优选加速教程）`），保留主标题
-- 同标题多篇时保留一篇，其余跳过（去重）
-- 净化后标题为空 → 不搬原文档，记入跳过清单
-
-### R9.2 正文规范化（markdown/html）
-
-- 连续 3+ 空行压缩为 1 个空行
-- 行尾空格去除
-- 多余的水平分隔线（连续 3+ 个 `---` 行）压缩为 1 个
-- 保留代码块、表格、图片、链接原样不动
-- 不做内容改写（措辞、结构不动），只做空白/分隔符层面的清理
-
-### R9.3 适用边界
-
-- 只处理 `format=markdown` 和 `format=html` 的文档
-- `format=lake` 一律不做任何正文处理，原样搬（防 card 附件损坏）
-- 清理动作必须在本地完成后再写入（先 get_doc → 本地清理 → create_doc/import_file）
+> R9 的完整清理细则（标题净化正则、正文规范化、去重、适用边界）统一维护在 `references/rules.md` 的 R9 小节，本文件不重复。
 
 ## 流程
 
 ```mermaid
 flowchart TD
-    A[取一篇A库文档] --> B{正文是纯二进制乱码?<br/>body 无可读文本<br/>且无 lake card 标签}
+    A[取一篇A库文档] --> B{正文是纯二进制乱码?<br/>按 format 取字段<br/>且无 lake card 标签}
     B -- 是 --> X[不搬]
     B -- 否 --> C{是数据库dump?}
     C -- 是 --> X
@@ -90,14 +69,20 @@ flowchart TD
     N -- 是 --> X
     N -- 否 --> T{type 是 Sheet/Board/Table?}
     T -- 是 --> W[标记待老板裁决<br/>不强行搬]
-    T -- 否 --> G{body > 200KB?}
-    G -- 是 --> H[下载文档<br/>按 ~200KB 段落拆分]
-    H --> I[分别搬运各段<br/>标题: 原文档名 - 第N段]
-    G -- 否 --> D{属于有用范围?}
-    D -- 是 --> E[原样搬进B库<br/>保留 format 原值<br/>markdown/lake/html 零转换<br/>附件跟着正文走]
+    T -- 否 --> D{属于有用范围?}
+    D -- 拿不准 --> Y[标记拿不准<br/>列给老板不搬]
     D -- 否 --> X
+    D -- 是 --> R9{方案B开启<br/>且 format 非 lake?}
+    R9 -- 是 --> Q[本地清理<br/>标题净化 + 正文规范化]
+    R9 -- 否 --> S{body 大小?}
+    Q --> S
+    S -- ">200KB" --> H[下载完整正文<br/>按 ~200KB 段落拆分]
+    H --> I[分段用 yuque_import_file<br/>标题: 原文档名 - 第N段]
+    S -- "50KB~200KB" --> P[yuque_import_file<br/>body 写本地文件]
+    S -- "≤50KB" --> E[yuque_create_doc<br/>format 传源值<br/>附件跟正文走]
     E --> F[记录搬运日志]
     I --> F
+    P --> F
 ```
 
 ### 步骤
@@ -126,7 +111,7 @@ flowchart TD
 | 拿不准清单 | 硬规则覆盖不到的 | 文档名 + 原因 + 链接，交老板扫一眼 |
 
 **跳过清单必须满足**：
-- 每条跳过都写明原因（映射 R1 正文二进制 / R2 数据库dump / R5 不在有用范围）
+- 每条跳过都写明原因（映射 R1 正文二进制 / R2 数据库dump / R5 不在有用范围 / R6 结构化类型待裁决 / R8 无意义内容 / R9 标题净化后为空或重复）
 - 每条跳过都带**文档链接**（`https://www.yuque.com/{login}/{book_slug}/{doc_slug}`），老板点开即可复核
 - 不允许只报数量不报明细
 
@@ -167,7 +152,7 @@ flowchart TD
 - `yuque_get_doc` 的 `id` 参数必须是字符串，即使传数字也会被 MCP 校验拒绝
 - `yuque_copy_doc` 的 `paths` 参数必须是 JSON 数组字符串（如 `'["目录名"]'`），需用 `--args` 方式传参
 - **命令行参数长度限制**：`yuque_create_doc` / `yuque_copy_doc` 将 body 作为命令行参数传递，body > 50KB 时可能触发 `Argument list too long` 错误。**解决方案**：body > 50KB 的文档用 `yuque_import_file` 替代（body 写入本地文件，命令只传文件路径）
-- **word_count 预过滤**：先通过 `yuque_list_docs` 拉取全量文档的 `word_count` 字段。`word_count > 100000` → 直接 R1 跳过（不 fetch body）；`word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 大概率是二进制碎片，直接 R1 跳过
+- **word_count 预过滤**：先通过 `yuque_web_list_docs` 拉取全量文档的 `word_count` 字段。`word_count > 100000` → 直接 R1 跳过（不 fetch body）；`word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 大概率是二进制碎片，直接 R1 跳过
 - **路径标题净化**：`yuque_copy_doc` 的 `paths` 参数中的标题可能含 tab、换行等特殊字符，导致 JSON 解析失败。搬运前需 `re.sub(r'[\t\n\r]+', ' ', title)` 净化
 - **批量处理超过 100 条时**，建议先 title 检测跳过二进制文件，再逐条 fetch body 验证
 - **进度持久化**：每处理 20 条保存一次中间结果到 JSON 文件，支持断点续跑（跳过已处理的 doc_id）

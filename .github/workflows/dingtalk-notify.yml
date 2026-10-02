@@ -12,8 +12,8 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
-      - uses: yehuoshun/yehuoshun-notify@latest
+      - uses: yehuoshun/yehuoshun-notify@v1.2.0
         with:
           webhook: ${{ secrets.DINGTALK_WEBHOOK }}

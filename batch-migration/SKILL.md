@@ -27,7 +27,7 @@ description: 语雀知识库全量批量搬运。读取每篇内容、去除剪�
 ## 前置环境
 
 - 语雀操作走 MCP（`yuque-mcp`，禁止直接 curl 调语雀 API）
-- 列表：`yuque_web_list_docs`（分页拉取，返回 `editor_meta` 可供预判附件）
+- 列表：`yuque_web_list_docs`（默认裁剪输出含 `type`/`word_count`/`format`/`slug`；`raw=true` 才含 `editor_meta`）
 - 读取：`yuque_get_doc`（按 format 选 body 字段）
 - 写入：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB）
 - 目录：`yuque_get_toc` / `yuque_update_toc` / `yuque_batch_update_toc`
