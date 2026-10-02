@@ -37,7 +37,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 
 ## 判定规则（复用 doc-reorg R1-R8）
 
-> 判定优先级：R1 > R2 > R8 > R6 > R7 > R5 > R3，顺序判定，命中即止。
+> 判定优先级：R1 > R2 > R8 > R6 > R5 > R7 > R3，顺序判定，命中即止（先判「搬不搬」，再判「怎么搬」）。
 
 | 规则 | 判定 |
 |---|---|
@@ -57,10 +57,11 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 写一个单线程串行循环，逐篇：
 
 1. **拉清单**：`yuque_web_list_docs` 分页拉全部文档，展开 `word_count`、`type`、`format`、`slug`、`title` 字段
-2. **元数据预过滤（不 fetch body）**：
+2. **元数据预过滤（不 fetch body，仅高置信项）**：
    - `word_count < 10` → R8 跳过（典型如批量「松建华」垃圾文档，几百篇一次全拦，省大量 API）
    - `type` 非 Doc → R6 跳过/标记
-   - `word_count > 100000` 或（`> 10000` 且标题为短字母数字组合）→ R1 跳过
+   - `word_count > 10000` 且标题为短字母数字组合（如 `a126713`）→ 二进制碎片特征，R1 跳过
+   - ⚠️ 仅凭 `word_count` 大（如 >100000）**不得静默跳过**：会误杀小说/长教程/手册。必须 fetch body 确认，或标「待复核」列入报告（见核心原则 3：禁止只用元数据判断）
 3. **取正文**：`yuque_get_doc` 按 format 选对 body 字段
 4. **内容清洗**（详见下节）
 5. **源链接注入**（详见下节）
@@ -116,7 +117,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 
 ### 关键坑
 
-- **直接 `appendNode` 带 `target_uuid` 对 DOC 类型不生效**（文档不动），必须走 `moveNode`（内部 remove+append）
+- **语雀 API 的 `target_uuid` 对 DOC 类型不可靠**，但本 MCP 已内部补偿：`appendNode` 带 `target_uuid` / `target_title` 时会自动「先挂根 → remove → append 到目标」；`moveNode` 等价于 `appendNode + node_uuid`。两者都可用，按 uuid 定位优先 `moveNode`
 - **moveNode 会改文档 uuid**：移动某文档不影响其他文档 uuid，可先做「doc_id → uuid」快照批量移；每移一批后重取 `yuque_get_toc` 更稳
 - **建目录用单工具 `appendNode` TITLE 会盲目追加**，同名目录重复建——先 `yuque_get_toc` 查已存在目录复用，事后清掉空重复目录
 - **分块执行**：每批 50-60 个 `moveNode`，避免 ops 数组过大
