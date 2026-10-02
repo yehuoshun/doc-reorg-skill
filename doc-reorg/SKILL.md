@@ -51,7 +51,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
 | R5 有用性 | 命中"有用范围"才搬；默认**全扫法**（非二进制/非dump/非结构化文档 的全搬） |
 | R6 类型 | `type=Sheet/Board/Table` 结构化文档另案处理（copy_doc 传不了结构化正文） |
-| R7 Big Doc 拆分 | 文档 body > 200KB → 按 ~200KB 段落拆分搬运 |
+| R7 Big Doc 拆分 | 文档 body > 200KB → 按 ~200KB 段落拆分搬运；`format` 一律传**源原值**（markdown/html/**lake** 都支持，不转格式） |
 | R8 无意义内容 | 正文极短（< 10 字符）或仅含无意义字符（纯数字/标点/空白/对象引用/JSON元数据）→ **不搬** |
 | R9 格式清理（方案 B，可选） | 老板开启时：markdown/html 写入前清理（标题去重复后缀/来源后缀，正文去多余空行/行尾空格）；**lake 永不清理**。细则见 `references/rules.md` |
 
@@ -98,7 +98,7 @@ flowchart TD
 3. **逐篇判定**：按 R1→R2→R8→R6→R7→R5→R3 顺序判定，另查 `type` 字段（R6）
 4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
 5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段；若老板开启方案 B（R9），markdown/html 先在本地做标题净化 + 正文规范化再写入，lake 原样
-6. **Big Doc 拆分**：`yuque_get_doc` 获取 body，按 **~200KB 段落**切分（段落/空行边界，每段 ≤200KB），每条用 `yuque_import_file` 写入 B 库（避免命令行参数长度限制），标题格式 `{原文档名} - 第 N 段`。拆分后每篇保持源 format。
+6. **Big Doc 拆分**：`yuque_get_doc` 取 body → 按 **~200KB 段落**切分（段落/空行边界，每段 ≤200KB）→ 每段写入本地文件，用 `yuque_import_file` 导入（`format` 传**源原值**，markdown / lake / html 都支持；`title` = `{原文档名} - 第 N 段`；`paths` 传目标目录，必填）。import_file 的 body 走文件、不受命令行长度限制；`create_doc` / `copy_doc` 的 body 走命令行参数，>50KB 才需要改走 import_file。**lake 拆分点必须避开 `<card>` 块**。
 7. **记日志**：记录 文档名 / 源位置 / format / 搬运结果，形成搬运日志
 8. **出执行报告**：扫描结束生成报告，含概览 + 搬运成功清单 + **跳过清单（跳过原因 + 跳过文档链接）** + Big Doc 拆分清单 + 拿不准清单，模板见 `references/report-template.md`
 9. **交终审**：报告 + 搬运结果交老板人工终审

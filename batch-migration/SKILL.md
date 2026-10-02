@@ -63,7 +63,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 3. **取正文**：`yuque_get_doc` 按 format 选对 body 字段
 4. **内容清洗**（详见下节）
 5. **源链接注入**（详见下节）
-6. **写入**：body ≤ 50KB 用 `yuque_create_doc`；> 50KB 写本地文件用 `yuque_import_file`
+6. **写入**：body ≤ 50KB 用 `yuque_create_doc`；> 50KB 写本地文件用 `yuque_import_file`（`format` 一律传源原值，markdown / lake / html 都支持）
 7. **记日志**：记录 文档名 / 源格式 / 结果（成功/跳过/错误 + 原因）
 8. **传进度**：每 20 篇写一次进度 JSON，支持断点续跑
 
@@ -98,6 +98,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 - body ≤ 50KB：`yuque_create_doc` 直接写
 - body > 50KB：`yuque_create_doc` 会触发 `Argument list too long`（body 走命令行参数），改 `yuque_import_file`（body 写本地文件，命令只传文件路径）
 - body > 200KB：按 **~200KB 段落**拆分——在段落/空行边界切分，每段 ≤200KB，每条用 `yuque_import_file`，标题 `{原文档名} - 第 N 段`；切分点优先选段落边界，避免掐断句子
+- format：`yuque_import_file` 的 `format` 支持 `markdown` / `lake` / `html`，写入一律传源 format 原值（**含 lake，不转格式**）；lake 拆分点避开 `<card>` 块
 
 ## 按内容建 TOC
 

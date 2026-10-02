@@ -65,15 +65,17 @@
 ## R7 Big Doc 拆分
 
 - 触发条件：文档 body 长度 > 200KB（≈ 200,000 字节）
-- ⚠️ 命令行长度限制先行：`yuque_create_doc` 把 body 作命令行参数，body > 50KB 就可能 `Argument list too long`，需改 `yuque_import_file`（body 写本地文件）
+- ⚠️ 命令行长度限制先行：`yuque_create_doc` / `yuque_copy_doc` 把 body 作命令行参数，body > 50KB 就可能 `Argument list too long`，需改 `yuque_import_file`（body 写本地文件，命令只传路径，无长度限制）
+- ✅ **format 全支持**：`yuque_import_file` 的 `format` 支持 `markdown` / `lake` / `html`（MCP `references/api/extended_api.md`），拆分后**按源 format 原值写入，不做格式转换**
+  - ⚠️ 该工具调用侧内联 schema 描述只写了 "markdown / html"，是 MCP 侧的陈旧描述，**以 references 为准（lake 可用）**
 - 操作流程：
-  1. 用 `yuque_export_doc` 或 API 获取文档完整内容
-  2. 按 **~200KB 段落**切分：在段落/空行边界处切，每段 ≤200KB，避免撩断句子
-  3. 每条拆分结果用 `yuque_import_file` 写入 B 库
+  1. 用 `yuque_get_doc` 取完整正文（按 format 选 `body` / `body_lake` / `body_html`）；也可用 `yuque_export_doc`，但注意其默认把 body_html 转 markdown，markdown 文档可传 `raw_body=true` 保原样
+  2. 按 **~200KB 段落**切分：在段落/空行边界处切，每段 ≤200KB，避免掐断句子；**lake 拆分点必须避开 `<card>` 块，不能把卡片拦腰切断**
+  3. 每段写入本地文件 → `yuque_import_file` 导入，`format` 传源原值，`paths` 传目标目录（必填，1-5 条）
   4. 标题格式：`{原文档名} - 第 N 段`
 - 注意事项：
-  - 拆分后每篇文档的 `format` 保持源格式
-  - 附件跟原文档走，不拆分到各段
+  - 拆分后每篇文档的 `format` 保持源格式（含 lake）
+  - 附件跟原文档走，不拆分到各段；lake 正文中的 `<card>` 整体留在所属段内，不切断
   - body ≤200KB 的不拆分，降级整体搬运
   - 拆分失败时整体搬运该文档
 
