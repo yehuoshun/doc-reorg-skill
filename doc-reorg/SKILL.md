@@ -128,7 +128,7 @@ flowchart TD
 
 - 报告直接放在目标库**根目录**（level=0），不嵌套子目录
 - 创建方式：生成完整 markdown 内容到本地文件，用 `yuque_import_file` 导入（避免 API body 长度限制）
-- 不要求首插（TOC 首插因 API 限制不可靠，见下方 TOC 操作局限）
+- 首插：需要的话用**单文档** `yuque_update_toc` 的 `action=prependNode` + `action_mode=sibling` 把报告提到根目录首位；不要用 `batch_update_toc` 的 `moveNode`（见下方 TOC 操作局限）
 
 ### 跳过清单条目过多时的处理
 
@@ -148,8 +148,10 @@ flowchart TD
 
 ## TOC 操作局限
 
-- `yuque_batch_update_toc` 的 `moveNode` 操作中，`position=before` 配合 TITLE 类型的 `target_uuid` 时，**始终将目标节点变为该 TITLE 的第一个子节点**，而非同级插入
+- `yuque_batch_update_toc` 的 `moveNode` **不暴露 `position` 参数**（该参数在语雀 MCP 中不存在）；`target_uuid` 指向 TITLE 节点时会表现为「移入该目录」，做不了精确的同级插入
 - 如需将文档放在根目录，直接用 `yuque_create_doc` 或 `yuque_import_file` 创建，不依赖 TOC 移动操作
+- 需要根目录首插时，用**单文档** `yuque_update_toc`：`action=prependNode` + `action_mode=sibling` + `node_uuid` + `target_uuid`；不要用 `batch_update_toc` 的 `moveNode`
+- ⚠️ `yuque_update_toc` 的 `action_mode` 是**必填**（`sibling` / `child`），漏传会被参数校验直接拒掉
 - 不需要对目标库做复杂的 TOC 结构调整
 
 ## 批量脚本执行注意事项

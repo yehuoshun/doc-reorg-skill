@@ -133,10 +133,11 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 报告放目标库/源库根目录**首位**时：
 
 1. `yuque_import_file` 导入报告（`paths` 必填非空，先用临时目录名如 `["整理报告"]`）
-2. `yuque_update_toc` 调 `action=prependNode` + `node_uuid`（报告节点）+ `target_uuid`（当前第一个根节点 uuid）提到首位
-3. 若 import 生成了空临时 TITLE 目录，`action=removeNode` + `confirm="DELETE"` 清掉
+2. `yuque_update_toc` 调到首位：`action=prependNode` + `action_mode=sibling` + `node_uuid`（报告节点）+ `target_uuid`（当前第一个根节点 uuid）
+3. 若 import 生成了空临时 TITLE 目录：`action=removeNode` + `action_mode=sibling` + `confirm="DELETE"` 清掉
 
-> 首插用**单文档** `yuque_update_toc` 的 `prependNode`，不是 `batch_update_toc` 的 `moveNode`（后者 position=before 配合 TITLE target 会把节点变子级而非同级）。
+> 首插用**单文档** `yuque_update_toc` 的 `prependNode`（`action_mode=sibling` 保证同级插入），不是 `batch_update_toc` 的 `moveNode`（`moveNode` 不暴露 `position`，target 为 TITLE 时会变成其子级，控不了同级首插）。
+> ⚠️ `yuque_update_toc` 的 `action_mode` 是必填参数（`sibling` / `child`），漏传会被参数校验拒掉。
 
 ## 批量脚本实现注意事项
 
