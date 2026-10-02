@@ -1,5 +1,5 @@
 ---
-name: yuque-batch-migration
+name: batch-migration
 description: 语雀知识库全量批量搬运。读取每篇内容、去除剪藏垃圾样式、末尾追加源文档链接、断点续传、报告首插。当用户说「全量搬运/批量迁移/把 X 库全部搬到 Y 库/去除剪藏垃圾样式/末尾加源链接」时触发。纯规则 R1-R8 驱动，不用 LLM 分类，区别于 doc-reorg（随看随搬零转换）和 yuque-migration（脚本 migrate.py + LLM 去重）。
 ---
 

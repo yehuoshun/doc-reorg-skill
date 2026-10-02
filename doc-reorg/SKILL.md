@@ -36,7 +36,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 
 | 规则 | 判定 |
 |---|---|
-| R1 正文二进制 | 正文是纯二进制乱码/不可读内容 → **不搬**。lake 格式含 `<card>` 标签的文档不算二进制（即使标题含文件扩展名，如 `.w3x/.js/.gif`，也不跳过） |
+| R1 正文二进制 | 正文是纯二进制乱码/不可读内容 → **不搬**。**判定字段按源 `format` 取：`lake` → `body_lake`，`markdown` → `body`，`html` → `body_html`；禁止用 `body` 判 lake 文档**（`body` 会 strip `<card>` 标签，把合法附件文档误判为二进制）。lake 格式含 `<card>` 标签的文档不算二进制（即使标题含文件扩展名，如 `.w3x/.js/.gif`，也不跳过） |
 | R2 数据库 dump | 内容是数据库 dump → **不搬** |
 | R3 附件 | 正文是文字的，附件照搬，随正文走 |
 | R4 格式 | 源 `format` 是什么就写什么（markdown/lake/html）零转换；`yuque_get_doc` 返回的 body 字段选择：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html` |
@@ -84,10 +84,11 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 flowchart TD
     A[取一篇A库文档] --> B{正文是纯二进制乱码?<br/>body 无可读文本<br/>且无 lake card 标签}
     B -- 是 --> X[不搬]
-    B -- 否 --> N{无意义内容?<br/>正文<10字符<br/>或纯数字/标点/空白}<br/>N -- 是 --> X
-    N -- 否 --> C{是数据库dump?}
+    B -- 否 --> C{是数据库dump?}
     C -- 是 --> X
-    C -- 否 --> T{type 是 Sheet/Board/Table?}
+    C -- 否 --> N{无意义内容?<br/>正文<10字符<br/>或纯数字/标点/空白}
+    N -- 是 --> X
+    N -- 否 --> T{type 是 Sheet/Board/Table?}
     T -- 是 --> W[标记待老板裁决<br/>不强行搬]
     T -- 否 --> G{body > 200KB?}
     G -- 是 --> H[下载文档<br/>按 ~200KB 段落拆分]
@@ -103,7 +104,7 @@ flowchart TD
 
 1. **定范围**：向老板确认 A 库、B 库、以及"有用范围"（范围法 / 目录法 / 全扫法，默认全扫法）
 2. **列文档**：`yuque_web_list_docs` 分页拉取 A 库文档
-3. **逐篇判定**：按 R1→R2→R6→R7→R5 顺序判定，另查 `type` 字段（R6）
+3. **逐篇判定**：按 R1→R2→R8→R6→R7→R5→R3 顺序判定，另查 `type` 字段（R6）
 4. **取正文**：`yuque_get_doc` 获取文档后，按 format 选择对应 body 字段：`format=markdown` → `body`，`format=lake` → `body_lake`，`format=html` → `body_html`。**禁止**用 `body` 字段搬运 lake 格式文档（会丢失 card 标签内的附件链接）
 5. **小文档搬运**：`yuque_create_doc` 写入 B 库，`format` 传源文档的 format 原值，`body` 传上一步选中的正确 body 字段；若老板开启方案 B（R9），markdown/html 先在本地做标题净化 + 正文规范化再写入，lake 原样
 6. **Big Doc 拆分**：`yuque_get_doc` 获取 body，按 **~200KB 段落**切分（段落/空行边界，每段 ≤200KB），每条用 `yuque_import_file` 写入 B 库（避免命令行参数长度限制），标题格式 `{原文档名} - 第 N 段`。拆分后每篇保持源 format。
