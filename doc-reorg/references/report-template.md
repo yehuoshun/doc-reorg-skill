@@ -38,7 +38,7 @@
 | 2 | 《xxx》 | https://www.yuque.com/... |
 
 > 按原因分组，每组首行标注数量，每条带链接。
-> 生成方式：写入本地 markdown 文件，用 `yuque_import_file` 导入目标库。
+> 生成方式：写入本地 markdown 文件，用 `yuque_import_file` 导入目标库（`paths` 必填）。
 
 ## 拿不准清单（待老板裁决）
 

@@ -32,7 +32,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 - 语雀操作走 MCP（`yuque-mcp`，禁止直接 curl 调语雀 API）
 - 列表：`yuque_web_list_docs`（默认裁剪输出含 `type`/`word_count`/`format`/`slug`；`raw=true` 才含 `editor_meta`）
 - 读取：`yuque_get_doc`（按 format 选 body 字段）
-- 写入：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB）
+- 写入：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB；body 写本地文件，`paths` 必填）
 - 目录：`yuque_get_toc` / `yuque_update_toc` / `yuque_batch_update_toc`
 
 ## 判定规则（复用 doc-reorg R1-R8）
@@ -43,13 +43,14 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 |---|---|
 | R1 正文二进制 | 纯二进制乱码 → 不搬；lake 含 `<card>` 标签不算二进制 |
 | R2 数据库 dump | 不搬 |
-| R8 无意义内容 | 正文 < 10 字符或纯数字/标点/空白 → 不搬 |
+| R3 附件 | 正文是文字的，附件随正文走 |
+| R4 格式 | 源 `format` 原值写入（markdown/lake/html）零转换；body 字段按 format 选：`markdown`→`body`，`lake`→`body_lake`（用 `body` 会丢 card 附件），`html`→`body_html` |
+| R5 有用性 | 默认全扫法，非以上拦截项全搬 |
 | R6 结构化类型 | type=Sheet/Board/Table → 标记待老板裁决，不强行搬 |
 | R7 Big Doc | body > 200KB 按 ~200KB 段落拆分；> 50KB 改走 `yuque_import_file` |
-| R5 有用性 | 默认全扫法，非以上拦截项全搬 |
-| R3 附件 | 正文是文字的，附件随正文走 |
+| R8 无意义内容 | 正文 < 10 字符或纯数字/标点/空白 → 不搬 |
 
-> **body 字段选择**：`format=markdown` → `body`，`format=lake` → `body_lake`（用 `body` 会丢 card 附件链接），`format=html` → `body_html`。
+> 编号与 `doc-reorg` 对齐（R1–R8），细则以 doc-reorg `references/rules.md` 为准。
 
 ## 流程（全量批量脚本）
 

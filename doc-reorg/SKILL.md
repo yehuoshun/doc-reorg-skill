@@ -35,7 +35,7 @@ description: 语雀知识库文档整理 Skill。当用户要求整理语雀文�
 - **列表**：`yuque_web_list_docs`（Cookie 态；默认裁剪输出含 `id/type/slug/title/format/word_count/book` 等；传 `raw=true` 才额外含 `editor_meta` 等原始字段）——**本 skill 统一用它**。v2 的 `yuque_list_docs` 不返回 `type`，非必要不用
 - **读取**：`yuque_get_doc`（v2 API，返回完整 `body` / `body_lake` / `body_html`）
   - ⚠️ `yuque_web_get_doc`（web API）不返回 `body_lake`，仅用于轻量查询
-- **写入**：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB，body 先写本地文件再传路径）
+- **写入**：`yuque_create_doc`（body ≤ 50KB）/ `yuque_import_file`（body > 50KB；body 先写本地文件，命令只传 `file_path`，另需 `paths` 必填）
 - **复制**：`yuque_copy_doc`（`paths` 必须是 JSON 数组字符串，用 `--args` 传参）
 - **导出**：`yuque_export_doc`（取完整正文，R7 大文档拆分用）
 - **目录**：`yuque_get_toc` / `yuque_update_toc` / `yuque_batch_update_toc`
@@ -127,7 +127,7 @@ flowchart TD
 ### 报告放置
 
 - 报告直接放在目标库**根目录**（level=0），不嵌套子目录
-- 创建方式：生成完整 markdown 内容到本地文件，用 `yuque_import_file` 导入（避免 API body 长度限制）
+- 创建方式：生成完整 markdown 内容到本地文件，用 `yuque_import_file` 导入（`paths` 必填，1-5 条，如 `["整理报告"]`；body 走文件不受长度限制）
 - 首插：需要的话用**单文档** `yuque_update_toc` 的 `action=prependNode` + `action_mode=sibling` 把报告提到根目录首位；不要用 `batch_update_toc` 的 `moveNode`（见下方 TOC 操作局限）
 
 ### 跳过清单条目过多时的处理
@@ -135,7 +135,7 @@ flowchart TD
 当跳过条目超过 100 条时：
 - 按原因分组展示（如 `R1 正文二进制（标题含 .7z）` 为一组）
 - 每组首行标注数量，每条带链接
-- 将完整 markdown 文件写入本地临时目录，再用 `yuque_import_file` 导入为目标库的首篇文档
+- 将完整 markdown 文件写入本地临时目录，再用 `yuque_import_file` 导入为目标库的首篇文档（`paths` 必填）
 - 完整 JSON 报告留存在本地供后续参考
 
 模板见 `references/report-template.md`
