@@ -66,6 +66,8 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 4. **内容清洗**（详见下节）
 5. **源链接注入**（详见下节）
 6. **写入**：body ≤ 50KB 用 `yuque_create_doc`；> 50KB 写本地文件用 `yuque_import_file`（`format` 一律传源原值，markdown / lake / html 都支持）
+   - ⚠️ 实测（2026-10-07）：`yuque_create_doc` 的 body 走命令行参数，**100KB 可过、120KB 报 Argument list too long**，安全线取 **90KB**（>90KB 才切 import_file，而非文档里普遍写的 50KB）
+   - ⚠️ `yuque_import_file` 的 `paths` 必填且非空（`[""]` / `[]` 都会被拒），且会创建/落入目录；目标库要求平铺时：先 import 到临时目录 → `yuque_batch_update_toc` moveNode（`target_uuid` 留空 = 移到根目录）→ removeNode 删掉空临时目录
 7. **记日志**：记录 文档名 / 源格式 / 结果（成功/跳过/错误 + 原因）
 8. **传进度**：每 20 篇写一次进度 JSON，支持断点续跑
 
@@ -79,6 +81,7 @@ description: 语雀知识库「全量一次性」批量搬运（千篇级）。�
 | 平台导航栏 | 去掉 LINUX DO / 博客园 等页首导航、面包屑、侧栏 |
 | 页脚 | 去掉「本文由 xxx 发布」「著作权归作者所有」等页脚 |
 | 多余空白 | 压缩连续空行、去行首行尾空白 |
+| **行号列代码块（Hugo Stack 主题）** | ⚠️ 剪藏后代码块变两列表格：左列是纯行号 codeblock（内容形如 `1\n 2\n 3...`，每行都是数字），右列才是真代码。识别 `len(td)==2` 且两 td 都是 codeblock card、左列 code 全为数字 → 剥掉左列 td，保留右列，`colgroup` 收成单列。2026-10-07 luoboQAQ 库实测 47 篇 570 处中招 |
 
 清洗后 body < 10 字符的按 R8 跳过（说明清洗后只剩垃圾）。
 
